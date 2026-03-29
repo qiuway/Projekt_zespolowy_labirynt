@@ -10,6 +10,8 @@ class MazeScreen(BaseScreen):
     def __init__(self, parent, controller):
         super().__init__(parent, controller)
 
+        self.validation = (self.register(self.validate_size), '%P')
+
         self.selected_method = tk.StringVar(value="DFS")
         self.rows_var = tk.StringVar(value="20")
         self.cols_var = tk.StringVar(value="20")
@@ -23,6 +25,17 @@ class MazeScreen(BaseScreen):
 
         self.create_title("Ekran Labiryntu")
         self.build_maze_ui()
+
+    #walidacja wartosci wymiarow labiryntu
+    def validate_size(self, new_value):
+        if new_value == "":
+            return True
+
+        if new_value.isdigit():
+            val = int(new_value)
+            return val <= 40
+
+        return False
 
     def build_maze_ui(self):
         outer = tk.Frame(self, bg="#e9e9e9")
@@ -75,7 +88,7 @@ class MazeScreen(BaseScreen):
 
         tk.Label(
             size_frame,
-            text="Rozmiar:",
+            text="Rozmiar (10-40):",
             font=("Arial", 14),
             bg="#e9e9e9"
         ).grid(row=0, column=0, columnspan=3, pady=(0, 6))
@@ -85,7 +98,9 @@ class MazeScreen(BaseScreen):
             textvariable=self.rows_var,
             width=5,
             justify="center",
-            font=("Arial", 14)
+            font=("Arial", 14),
+            validate = "key",
+            validatecommand = self.validation
         ).grid(row=1, column=0)
 
         tk.Label(
@@ -100,7 +115,9 @@ class MazeScreen(BaseScreen):
             textvariable=self.cols_var,
             width=5,
             justify="center",
-            font=("Arial", 14)
+            font=("Arial", 14),
+            validate="key",
+            validatecommand=self.validation
         ).grid(row=1, column=2)
 
         tk.Button(
@@ -164,6 +181,12 @@ class MazeScreen(BaseScreen):
         try:
             rows = int(self.rows_var.get())
             cols = int(self.cols_var.get())
+
+            rows = max(10, min(40, rows))
+            cols = max(10, min(40, cols))
+
+            self.rows_var.set(str(rows))
+            self.cols_var.set(str(cols))
         except ValueError:
             return
 

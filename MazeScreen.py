@@ -1,6 +1,10 @@
 import tkinter as tk
-from BaseScreen import BaseScreen
 
+from BaseScreen import BaseScreen
+from ButtonStyles import BUTTON_ONE
+from ButtonStyles import BUTTON_TWO
+from ButtonStyles import BUTTON_THREE
+from ButtonStyles import BUTTON_FOUR
 
 class MazeScreen(BaseScreen):
     def __init__(self, parent, controller):
@@ -9,6 +13,13 @@ class MazeScreen(BaseScreen):
         self.selected_method = tk.StringVar(value="DFS")
         self.rows_var = tk.StringVar(value="20")
         self.cols_var = tk.StringVar(value="20")
+
+        self.current_rows = None
+        self.current_cols = None
+
+        self.canvas = None
+        self.method_label = None
+        self.size_label = None
 
         self.create_title("Ekran Labiryntu")
         self.build_maze_ui()
@@ -23,12 +34,8 @@ class MazeScreen(BaseScreen):
         tk.Button(
             top_panel,
             text="Powrót do menu",
-            font=("Arial", 14),
-            bg="white",
-            relief="solid",
-            bd=3,
-            width=16,
-            command=lambda: self.controller.show_frame("MenuScreen")
+            command=lambda: self.controller.show_frame("MenuScreen"),
+            **BUTTON_THREE
         ).pack(side="left", padx=(0, 10))
 
         tk.Label(
@@ -45,13 +52,8 @@ class MazeScreen(BaseScreen):
                 value=method,
                 variable=self.selected_method,
                 indicatoron=False,
-                font=("Arial", 14),
-                bg="white",
-                selectcolor="#dcdcdc",
-                relief="solid",
-                bd=3,
-                width=12,
-                pady=8
+                command=self.update_method_label,
+                **BUTTON_FOUR
             ).pack(side="left", padx=5)
 
         middle = tk.Frame(outer, bg="#e9e9e9")
@@ -71,28 +73,48 @@ class MazeScreen(BaseScreen):
         size_frame = tk.Frame(left_panel, bg="#e9e9e9")
         size_frame.pack(pady=(0, 15))
 
-        tk.Label(size_frame, text="Rozmiar:", font=("Arial", 14), bg="#e9e9e9").grid(row=0, column=0, columnspan=3)
+        tk.Label(
+            size_frame,
+            text="Rozmiar:",
+            font=("Arial", 14),
+            bg="#e9e9e9"
+        ).grid(row=0, column=0, columnspan=3, pady=(0, 6))
 
-        tk.Entry(size_frame, textvariable=self.rows_var, width=5, justify="center").grid(row=1, column=0)
-        tk.Label(size_frame, text="x", bg="#e9e9e9").grid(row=1, column=1)
-        tk.Entry(size_frame, textvariable=self.cols_var, width=5, justify="center").grid(row=1, column=2)
+        tk.Entry(
+            size_frame,
+            textvariable=self.rows_var,
+            width=5,
+            justify="center",
+            font=("Arial", 14)
+        ).grid(row=1, column=0)
 
-        for text in [
-            "Stwórz labirynt",
-            "Losowy labirynt",
-            "Edytuj labirynt",
-            "Zapisz labirynt",
-            "Start"
-        ]:
+        tk.Label(
+            size_frame,
+            text="x",
+            font=("Arial", 14, "bold"),
+            bg="#e9e9e9"
+        ).grid(row=1, column=1, padx=5)
+
+        tk.Entry(
+            size_frame,
+            textvariable=self.cols_var,
+            width=5,
+            justify="center",
+            font=("Arial", 14)
+        ).grid(row=1, column=2)
+
+        tk.Button(
+            left_panel,
+            text="Stwórz labirynt",
+            command=self.create_maze,
+            **BUTTON_ONE
+        ).pack(pady=6)
+
+        for text in ["Losowy labirynt", "Edytuj labirynt", "Zapisz labirynt", "Start"]:
             tk.Button(
                 left_panel,
                 text=text,
-                font=("Arial", 14),
-                bg="white",
-                relief="solid",
-                bd=3,
-                width=16,
-                height=2
+                **BUTTON_ONE
             ).pack(pady=6)
 
         center_panel = tk.Frame(middle, bg="#e9e9e9")
@@ -101,8 +123,14 @@ class MazeScreen(BaseScreen):
         canvas_frame = tk.Frame(center_panel, bg="black", bd=4, relief="solid")
         canvas_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        canvas = tk.Canvas(canvas_frame, bg="black")
-        canvas.pack(fill="both", expand=True)
+        self.canvas = tk.Canvas(
+            canvas_frame,
+            bg="white",
+            highlightthickness=0
+        )
+        self.canvas.pack(fill="both", expand=True)
+
+        self.canvas.bind("<Configure>", self.redraw_current_grid)
 
         right_panel = tk.Frame(middle, bg="#e9e9e9", width=220)
         right_panel.pack(side="left", fill="y", padx=(10, 0))
@@ -115,24 +143,73 @@ class MazeScreen(BaseScreen):
             bg="#e9e9e9"
         ).pack(pady=(10, 15))
 
-        tk.Label(
+        self.method_label = tk.Label(
             right_panel,
             text="Metoda:\nDFS",
-            font=("Arial", 14),
-            bg="white",
-            relief="solid",
-            bd=3,
-            width=16,
-            height=3
-        ).pack(pady=8)
+            **BUTTON_TWO
+        )
+        self.method_label.pack(pady=8)
 
-        tk.Label(
+        self.size_label = tk.Label(
             right_panel,
-            text="Rozmiar:\n20 x 20",
-            font=("Arial", 14),
-            bg="white",
-            relief="solid",
-            bd=3,
-            width=16,
-            height=3
-        ).pack(pady=8)
+            text="Rozmiar:\nBrak",
+            **BUTTON_TWO
+        )
+        self.size_label.pack(pady=8)
+
+    def update_method_label(self):
+        self.method_label.config(text=f"Metoda:\n{self.selected_method.get()}")
+
+    def create_maze(self):
+        try:
+            rows = int(self.rows_var.get())
+            cols = int(self.cols_var.get())
+        except ValueError:
+            return
+
+        self.current_rows = rows
+        self.current_cols = cols
+        self.size_label.config(text=f"Rozmiar:\n{rows} x {cols}")
+        self.draw_grid(rows, cols)
+
+    def redraw_current_grid(self, event=None):
+        if self.current_rows is not None and self.current_cols is not None:
+            self.draw_grid(self.current_rows, self.current_cols)
+
+    def draw_grid(self, rows, cols):
+        if self.canvas is None:
+            return
+
+        self.canvas.delete("all")
+        self.canvas.update_idletasks()
+
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+
+        if canvas_width < 50 or canvas_height < 50:
+            return
+
+        margin = 20
+        usable_width = canvas_width - 2 * margin
+        usable_height = canvas_height - 2 * margin
+
+        cell_size = min(usable_width / cols, usable_height / rows)
+
+        grid_width = cell_size * cols
+        grid_height = cell_size * rows
+
+        start_x = (canvas_width - grid_width) / 2
+        start_y = (canvas_height - grid_height) / 2
+
+        for row in range(rows):
+            for col in range(cols):
+                x1 = start_x + col * cell_size
+                y1 = start_y + row * cell_size
+                x2 = x1 + cell_size
+                y2 = y1 + cell_size
+
+                self.canvas.create_rectangle(
+                    x1, y1, x2, y2,
+                    fill="white",
+                    outline="black"
+                )

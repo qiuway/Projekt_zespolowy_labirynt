@@ -1,6 +1,8 @@
 import tkinter as tk
 from BaseScreen import BaseScreen
-
+from ButtonStyles import BUTTON_SIX
+from ButtonStyles import BUTTON_SEVEN
+from ButtonStyles import BUTTON_EIGHT
 
 class SettingsScreen(BaseScreen):
     def __init__(self, parent, controller):
@@ -10,11 +12,7 @@ class SettingsScreen(BaseScreen):
 
         panel = tk.Frame(
             self,
-            bg="white",
-            relief="solid",
-            bd=3,
-            padx=30,
-            pady=30
+            **BUTTON_EIGHT
         )
         panel.pack(pady=30)
 
@@ -23,34 +21,24 @@ class SettingsScreen(BaseScreen):
         tk.Checkbutton(
             panel,
             text="Pełny ekran",
-            variable=self.fullscreen_var,
-            font=("Arial", 18),
-            bg="white"
+            **BUTTON_SEVEN
         ).pack(anchor="w", pady=10)
 
         tk.Checkbutton(
             panel,
             text="Muzyka",
-            font=("Arial", 18),
-            bg="white"
+            **BUTTON_SEVEN
         ).pack(anchor="w", pady=10)
 
         tk.Checkbutton(
             panel,
             text="Rozdzielczość",
-            font=("Arial", 18),
-            bg="white"
+            **BUTTON_SEVEN
         ).pack(anchor="w", pady=10)
 
         tk.Button(
             self,
             text="Powrót do menu",
-            font=("Arial", 16),
-            bg="white",
-            fg="black",
-            relief="solid",
-            bd=3,
-            width=16,
-            height=2,
-            command=lambda: self.controller.show_frame("MenuScreen")
+            command=lambda: self.controller.show_frame("MenuScreen"),
+            **BUTTON_SIX
         ).pack(pady=30)

@@ -1,6 +1,10 @@
 import tkinter as tk
 from BaseScreen import BaseScreen
 
+from ButtonStyles import BUTTON_SIX
+from ButtonStyles import BUTTON_SEVEN
+from ButtonStyles import BUTTON_NINE
+from ButtonStyles import BUTTON_TEN
 
 class CreditsScreen(BaseScreen):
     def __init__(self, parent, controller):
@@ -17,27 +21,20 @@ class CreditsScreen(BaseScreen):
         def create_author_box(parent, title, description="Info o autorach"):
             box = tk.Frame(
                 parent,
-                bg="white",
-                relief="solid",
-                bd=3,
-                padx=20,
-                pady=20
+                **BUTTON_NINE
             )
             box.pack(side="left", padx=60)
 
             tk.Label(
                 box,
                 text=title,
-                font=("Arial", 18, "bold"),
-                bg="white"
+                **BUTTON_SEVEN
             ).pack(pady=(0, 10))
 
             tk.Label(
                 box,
                 text=description,
-                font=("Arial", 14),
-                bg="white",
-                fg="gray"
+                **BUTTON_TEN
             ).pack()
 
         create_author_box(row, "Filip")
@@ -47,12 +44,6 @@ class CreditsScreen(BaseScreen):
         tk.Button(
             self,
             text="Powrót do menu",
-            font=("Arial", 16),
-            bg="white",
-            fg="black",
-            relief="solid",
-            bd=3,
-            width=16,
-            height=2,
-            command=lambda: self.controller.show_frame("MenuScreen")
+            command=lambda: self.controller.show_frame("MenuScreen"),
+            **BUTTON_SIX
         ).pack(pady=40)

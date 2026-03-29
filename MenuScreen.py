@@ -1,6 +1,6 @@
 import tkinter as tk
 from BaseScreen import BaseScreen
-
+from ButtonStyles import BUTTON_FIVE
 
 class MenuScreen(BaseScreen):
     def __init__(self, parent, controller):
@@ -22,13 +22,7 @@ class MenuScreen(BaseScreen):
             btn = tk.Button(
                 center_frame,
                 text=text,
-                font=("Arial", 20),
-                bg="white",
-                fg="black",
-                relief="solid",
-                bd=3,
-                width=20,
-                height=2,
-                command=command
+                command=command,
+                **BUTTON_FIVE
             )
             btn.pack(pady=12)

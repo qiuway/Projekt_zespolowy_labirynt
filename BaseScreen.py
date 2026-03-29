@@ -1,5 +1,5 @@
 import tkinter as tk
-
+from ButtonStyles import BUTTON_ZERO
 
 class BaseScreen(tk.Frame):
     def __init__(self, parent, controller):
@@ -10,23 +10,7 @@ class BaseScreen(tk.Frame):
         label = tk.Label(
             self,
             text=text,
-            font=("Arial", 28, "bold"),
-            bg="#e9e9e9",
-            fg="black"
+            **BUTTON_ZERO
         )
         label.pack(pady=(20, 10))
         return label
-
-    def menu_button(self, text, command, width=18, height=2, font_size=16):
-        return tk.Button(
-            self,
-            text=text,
-            font=("Arial", font_size),
-            bg="white",
-            fg="black",
-            relief="solid",
-            bd=3,
-            width=width,
-            height=height,
-            command=command
-        )

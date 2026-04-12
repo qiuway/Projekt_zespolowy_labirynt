@@ -1,4 +1,6 @@
 import tkinter as tk
+from tkinter import messagebox
+from collections import deque
 
 from BaseScreen import BaseScreen
 from ButtonStyles import BUTTON_ONE
@@ -19,6 +21,11 @@ class MazeScreen(BaseScreen):
         self.current_rows = None
         self.current_cols = None
 
+        self.grid_data = []
+        self.cell_size = 0
+        self.offset_x = 0
+        self.offset_y = 0
+
         self.canvas = None
         self.method_label = None
         self.size_label = None
@@ -26,7 +33,7 @@ class MazeScreen(BaseScreen):
         self.create_title("Ekran Labiryntu")
         self.build_maze_ui()
 
-    #walidacja wartosci wymiarow labiryntu
+    # walidacja wartosci wymiarow labiryntu
     def validate_size(self, new_value):
         if new_value == "":
             return True
@@ -127,7 +134,14 @@ class MazeScreen(BaseScreen):
             **BUTTON_ONE
         ).pack(pady=6)
 
-        for text in ["Losowy labirynt", "Edytuj labirynt", "Zapisz labirynt", "Start"]:
+        tk.Button(
+            left_panel,
+            text="Sprawdź labirynt",
+            command=self.validate_maze_path,
+            **BUTTON_ONE
+        ).pack(pady=6)
+
+        for text in ["Losowy labirynt", "Zapisz labirynt", "Start"]:
             tk.Button(
                 left_panel,
                 text=text,
@@ -146,6 +160,11 @@ class MazeScreen(BaseScreen):
             highlightthickness=0
         )
         self.canvas.pack(fill="both", expand=True)
+
+        self.canvas.bind("<Button-1>", self.on_canvas_click)  # tworzenie scian
+        self.canvas.bind("<B1-Motion>", self.on_canvas_click)  # tworzenie - pedzel
+        self.canvas.bind("<Button-3>", lambda e: self.on_canvas_click(e, erase=True))  # usuwanie scian
+        self.canvas.bind("<B3-Motion>", lambda e: self.on_canvas_click(e, erase=True))  # usuwanie - pędzel
 
         self.canvas.bind("<Configure>", self.redraw_current_grid)
 
@@ -182,24 +201,31 @@ class MazeScreen(BaseScreen):
             rows = int(self.rows_var.get())
             cols = int(self.cols_var.get())
 
-            rows = max(10, min(40, rows))
-            cols = max(10, min(40, cols))
+            self.current_rows = max(10, min(40, rows))
+            self.current_cols = max(10, min(40, cols))
 
-            self.rows_var.set(str(rows))
-            self.cols_var.set(str(cols))
+            self.grid_data = [[0 for _ in range(self.current_cols)] for _ in range(self.current_rows)]
+
+            self.size_label.config(text=f"Rozmiar:\n{self.current_rows} x {self.current_cols}")
+            self.draw_grid()
         except ValueError:
             return
 
-        self.current_rows = rows
-        self.current_cols = cols
-        self.size_label.config(text=f"Rozmiar:\n{rows} x {cols}")
-        self.draw_grid(rows, cols)
+    def on_canvas_click(self, event, erase=False):
+        if not self.grid_data: return
+
+        col = int((event.x - self.offset_x) // self.cell_size)
+        row = int((event.y - self.offset_y) // self.cell_size)
+
+        if 0 <= row < self.current_rows and 0 <= col < self.current_cols:
+            self.grid_data[row][col] = 0 if erase else 1
+            self.draw_grid()
 
     def redraw_current_grid(self, event=None):
-        if self.current_rows is not None and self.current_cols is not None:
-            self.draw_grid(self.current_rows, self.current_cols)
+        if self.grid_data:
+            self.draw_grid()
 
-    def draw_grid(self, rows, cols):
+    def draw_grid(self):
         if self.canvas is None:
             return
 
@@ -213,26 +239,60 @@ class MazeScreen(BaseScreen):
             return
 
         margin = 20
-        usable_width = canvas_width - 2 * margin
-        usable_height = canvas_height - 2 * margin
+        self.cell_size = min((canvas_width - 2 * margin) / self.current_cols, (canvas_height - 2 * margin) / self.current_rows)
 
-        cell_size = min(usable_width / cols, usable_height / rows)
+        self.offset_x = (canvas_width - (self.cell_size * self.current_cols)) / 2
+        self.offset_y = (canvas_height - (self.cell_size * self.current_rows)) / 2
 
-        grid_width = cell_size * cols
-        grid_height = cell_size * rows
+        for row in range(self.current_rows):
+            for col in range(self.current_cols):
+                x1 = self.offset_x + col * self.cell_size
+                y1 = self.offset_y + row * self.cell_size
+                x2 = x1 + self.cell_size
+                y2 = y1 + self.cell_size
 
-        start_x = (canvas_width - grid_width) / 2
-        start_y = (canvas_height - grid_height) / 2
+                color = "white"
+                if self.grid_data[row][col] == 1:
+                    color = "#2c3e50"  # Kolor ściany
 
-        for row in range(rows):
-            for col in range(cols):
-                x1 = start_x + col * cell_size
-                y1 = start_y + row * cell_size
-                x2 = x1 + cell_size
-                y2 = y1 + cell_size
+                # zaznaczenie startu i mety
+                if row == 0 and col == 0: color = "#2ecc71"
+                if row == self.current_rows - 1 and col == self.current_cols - 1: color = "#e74c3c"
 
                 self.canvas.create_rectangle(
                     x1, y1, x2, y2,
-                    fill="white",
+                    fill=color,
                     outline="black"
                 )
+
+    # sprawdzenie mozliwosci przejscia labiryntu algorytmem BFS
+    def validate_maze_path(self):
+        if not self.grid_data: return
+
+        rows = self.current_rows
+        cols = self.current_cols
+        start = (0, 0)
+        goal = (rows - 1, cols - 1)
+
+        if self.grid_data[start[0]][start[1]] == 1 or self.grid_data[goal[0]][goal[1]] == 1:
+            messagebox.showerror("Błąd", "Start lub Meta są zablokowane ścianą!")
+            return
+
+        queue = deque([start])
+        visited = {start}
+
+        while queue:
+            curr_r, curr_c = queue.popleft()
+
+            if (curr_r, curr_c) == goal:
+                messagebox.showinfo("Sukces", "Labirynt jest prawidłowy! Istnieje droga do wyjścia.")
+                return
+
+            for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                nr, nc = curr_r + dr, curr_c + dc
+
+                if (0 <= nr < rows and 0 <= nc < cols and self.grid_data[nr][nc] == 0 and (nr, nc) not in visited):
+                    visited.add((nr, nc))
+                    queue.append((nr, nc))
+
+        messagebox.showwarning("Błąd", "Brak przejścia! Labirynt jest nieprzejezdny.")

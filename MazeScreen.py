@@ -141,19 +141,19 @@ class MazeScreen(BaseScreen):
             **BUTTON_ONE
         ).pack(pady=6)
 
-        tk.Button(
-            left_panel,
-            text="Sprawdź labirynt",
-            command=self.validate_maze_path,
-            **BUTTON_ONE
-        ).pack(pady=6)
-
-        for text in ["Losowy labirynt", "Zapisz labirynt", "Start"]:
+        for text in ["Losowy labirynt", "Zapisz labirynt"]:
             tk.Button(
                 left_panel,
                 text=text,
                 **BUTTON_ONE
             ).pack(pady=6)
+
+        tk.Button(
+            left_panel,
+            text="Start",
+            command=self.start_simulation,
+            **BUTTON_ONE
+        ).pack(pady=6)
 
         center_panel = tk.Frame(middle, bg="#e9e9e9")
         center_panel.pack(side="left", fill="both", expand=True)
@@ -342,33 +342,131 @@ class MazeScreen(BaseScreen):
 
                     self.canvas.itemconfig(f"cell_{row}_{col}", fill=color)
 
-    def validate_maze_path(self):
-        if not self.grid_data: return
-
-        rows = self.current_rows
-        cols = self.current_cols
-        start = self.start_pos
-        goal = self.goal_pos
-
-        if self.grid_data[start[0]][start[1]] == 1 or self.grid_data[goal[0]][goal[1]] == 1:
-            messagebox.showerror("Błąd", "Start lub Meta są zablokowane ścianą!")
+    def start_simulation(self):
+        if not self.validate_maze_path():
             return
+
+        method = self.selected_method.get()
+        path = []
+
+        if method == "DFS":
+            path = self.solve_dfs()
+        elif method == "BFS":
+            path = self.solve_bfs()
+        elif method == "Prawej Ręki":
+            path = self.solve_right_hand()
+
+        if path:
+            self.draw_final_path(path)
+        else:
+            messagebox.showinfo("Informacja", "Algorytm nie zwrócił ścieżki.")
+
+    def draw_final_path(self, path):
+        for row in range(self.current_rows):
+            for col in range(self.current_cols):
+                if self.grid_data[row][col] == 0 and (row, col) != self.start_pos and (row, col) != self.goal_pos:
+                    self.canvas.itemconfig(f"cell_{row}_{col}", fill="white")
+
+        for node in path:
+            if node != self.start_pos and node != self.goal_pos:
+                self.canvas.itemconfig(f"cell_{node[0]}_{node[1]}", fill="#f1c40f")  # Żółty kolor
+
+    def solve_dfs(self):
+        stack = [self.start_pos]
+        parent = {self.start_pos: None}
+        visited = {self.start_pos}
+
+        while stack:
+            curr = stack.pop()
+
+            if curr == self.goal_pos:
+                path = []
+                while curr is not None:
+                    path.append(curr)
+                    curr = parent[curr]
+                return path[::-1]
+
+            for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                nr, nc = curr[0] + dr, curr[1] + dc
+                if (0 <= nr < self.current_rows and 0 <= nc < self.current_cols and self.grid_data[nr][nc] == 0 and (nr, nc) not in visited):
+                    visited.add((nr, nc))
+                    parent[(nr, nc)] = curr
+                    stack.append((nr, nc))
+        return []
+
+    def solve_bfs(self):
+        queue = deque([self.start_pos])
+        parent = {self.start_pos: None}
+
+        while queue:
+            curr = queue.popleft()
+
+            if curr == self.goal_pos:
+                path = []
+                while curr is not None:
+                    path.append(curr)
+                    curr = parent[curr]
+                return path[::-1]
+
+            for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                nr, nc = curr[0] + dr, curr[1] + dc
+                if (0 <= nr < self.current_rows and 0 <= nc < self.current_cols and self.grid_data[nr][nc] == 0 and (nr, nc) not in parent):
+                    parent[(nr, nc)] = curr
+                    queue.append((nr, nc))
+        return []
+
+    def solve_right_hand(self):
+        directions = [(-1, 0), (0, 1), (1, 0), (0, -1)]
+        curr_pos = self.start_pos
+        curr_dir = 1
+
+        path = [curr_pos]
+        # maksymalna liczba krokow, aby uniknac nieskonczonej petli
+        limit = self.current_rows * self.current_cols * 4
+
+        for _ in range(limit):
+            if curr_pos == self.goal_pos:
+                return path
+
+            found_move = False
+            for i in [1, 0, -1, -2]:
+                test_dir = (curr_dir + i) % 4
+                dr, dc = directions[test_dir]
+                nr, nc = curr_pos[0] + dr, curr_pos[1] + dc
+
+                if 0 <= nr < self.current_rows and 0 <= nc < self.current_cols and self.grid_data[nr][nc] == 0:
+                    curr_pos = (nr, nc)
+                    curr_dir = test_dir
+                    path.append(curr_pos)
+                    found_move = True
+                    break
+
+            if not found_move: break
+        return path
+
+    def validate_maze_path(self):
+        if not self.grid_data: return False
+
+        rows, cols = self.current_rows, self.current_cols
+        start, goal = self.start_pos, self.goal_pos
 
         queue = deque([start])
         visited = {start}
+        found = False
 
         while queue:
             curr_r, curr_c = queue.popleft()
-
             if (curr_r, curr_c) == goal:
-                messagebox.showinfo("Sukces", "Labirynt jest prawidłowy! Istnieje droga do wyjścia.")
-                return
+                found = True
+                break
 
             for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
                 nr, nc = curr_r + dr, curr_c + dc
-
                 if (0 <= nr < rows and 0 <= nc < cols and self.grid_data[nr][nc] == 0 and (nr, nc) not in visited):
                     visited.add((nr, nc))
                     queue.append((nr, nc))
 
-        messagebox.showwarning("Błąd", "Brak przejścia! Labirynt jest nieprzejezdny.")
+        if not found:
+            messagebox.showwarning("Błąd", "Brak przejścia!")
+
+        return found

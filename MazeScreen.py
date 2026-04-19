@@ -18,6 +18,9 @@ class MazeScreen(BaseScreen):
         self.rows_var = tk.StringVar(value="20")
         self.cols_var = tk.StringVar(value="20")
 
+        # Nowa zmienna określająca, co aktualnie rysujemy na planszy
+        self.draw_mode = tk.StringVar(value="Ściana")
+
         self.current_rows = None
         self.current_cols = None
 
@@ -25,6 +28,10 @@ class MazeScreen(BaseScreen):
         self.cell_size = 0
         self.offset_x = 0
         self.offset_y = 0
+
+        # Zmienne przechowujące pozycje startu/mety
+        self.start_pos = (0, 0)
+        self.goal_pos = (0, 0)
 
         self.canvas = None
         self.method_label = None
@@ -161,10 +168,10 @@ class MazeScreen(BaseScreen):
         )
         self.canvas.pack(fill="both", expand=True)
 
-        self.canvas.bind("<Button-1>", self.on_canvas_click)  # tworzenie scian
-        self.canvas.bind("<B1-Motion>", self.on_canvas_click)  # tworzenie - pedzel
-        self.canvas.bind("<Button-3>", lambda e: self.on_canvas_click(e, erase=True))  # usuwanie scian
-        self.canvas.bind("<B3-Motion>", lambda e: self.on_canvas_click(e, erase=True))  # usuwanie - pędzel
+        self.canvas.bind("<Button-1>", self.on_canvas_click)
+        self.canvas.bind("<B1-Motion>", self.on_canvas_click)
+        self.canvas.bind("<Button-3>", lambda e: self.on_canvas_click(e, erase=True))
+        self.canvas.bind("<B3-Motion>", lambda e: self.on_canvas_click(e, erase=True))
 
         self.canvas.bind("<Configure>", self.redraw_current_grid)
 
@@ -193,6 +200,29 @@ class MazeScreen(BaseScreen):
         )
         self.size_label.pack(pady=8)
 
+        # Narzędzia
+        tk.Label(
+            right_panel,
+            text="Narzędzie:",
+            font=("Arial", 16, "bold"),
+            bg="#e9e9e9"
+        ).pack(pady=(20, 5))
+
+        tools_frame = tk.Frame(right_panel, bg="#e9e9e9")
+        tools_frame.pack(pady=(0, 15))
+
+        for mode in ["Ściana", "Start", "Meta"]:
+            tk.Radiobutton(
+                tools_frame,
+                text=mode,
+                value=mode,
+                variable=self.draw_mode,
+                indicatoron=False,
+                width=14,
+                font=("Arial", 12),
+                bg="white", fg="black", selectcolor="#dcdcdc", relief="solid", bd=2
+            ).pack(pady=4)
+
     def update_method_label(self):
         self.method_label.config(text=f"Metoda:\n{self.selected_method.get()}")
 
@@ -206,7 +236,14 @@ class MazeScreen(BaseScreen):
 
             self.grid_data = [[0 for _ in range(self.current_cols)] for _ in range(self.current_rows)]
 
+            # Domyślne pozycje start/meta
+            self.start_pos = (0, 0)
+            self.goal_pos = (self.current_rows - 1, self.current_cols - 1)
+
             self.size_label.config(text=f"Rozmiar:\n{self.current_rows} x {self.current_cols}")
+
+            if self.canvas: self.canvas.delete("all")
+
             self.draw_grid()
         except ValueError:
             return
@@ -218,19 +255,39 @@ class MazeScreen(BaseScreen):
         row = int((event.y - self.offset_y) // self.cell_size)
 
         if 0 <= row < self.current_rows and 0 <= col < self.current_cols:
-            self.grid_data[row][col] = 0 if erase else 1
+            if erase:
+                # Zabezpieczenie przed usunięciem punktu startu/mety
+                if (row, col) != self.start_pos and (row, col) != self.goal_pos:
+                    self.grid_data[row][col] = 0
+            else:
+                mode = self.draw_mode.get()
+
+                if mode == "Ściana":
+                    # Ściany nie można postawić na starcie/mecie
+                    if (row, col) != self.start_pos and (row, col) != self.goal_pos:
+                        self.grid_data[row][col] = 1
+                elif mode == "Start":
+                    # Startu nie można postawić na mecie
+                    if (row, col) != self.goal_pos:
+                        self.start_pos = (row, col)
+                        self.grid_data[row][col] = 0  # Usuń ścianę jeśli tam była
+                elif mode == "Meta":
+                    # Mety nie można postawić na starcie
+                    if (row, col) != self.start_pos:
+                        self.goal_pos = (row, col)
+                        self.grid_data[row][col] = 0  # Usuń ścianę jeśli tam była
+
             self.draw_grid()
 
     def redraw_current_grid(self, event=None):
         if self.grid_data:
+            if self.canvas:
+                self.canvas.delete("all")
             self.draw_grid()
 
     def draw_grid(self):
         if self.canvas is None:
             return
-
-        self.canvas.delete("all")
-        self.canvas.update_idletasks()
 
         canvas_width = self.canvas.winfo_width()
         canvas_height = self.canvas.winfo_height()
@@ -239,40 +296,59 @@ class MazeScreen(BaseScreen):
             return
 
         margin = 20
-        self.cell_size = min((canvas_width - 2 * margin) / self.current_cols, (canvas_height - 2 * margin) / self.current_rows)
+        self.cell_size = min((canvas_width - 2 * margin) / self.current_cols,
+                             (canvas_height - 2 * margin) / self.current_rows)
 
         self.offset_x = (canvas_width - (self.cell_size * self.current_cols)) / 2
         self.offset_y = (canvas_height - (self.cell_size * self.current_rows)) / 2
 
-        for row in range(self.current_rows):
-            for col in range(self.current_cols):
-                x1 = self.offset_x + col * self.cell_size
-                y1 = self.offset_y + row * self.cell_size
-                x2 = x1 + self.cell_size
-                y2 = y1 + self.cell_size
+        # Rysuj wszystko od nowa TYLKO jeśli zmieniono rozmiar okna/labiryntu
+        # Puste Canvas oznacza, że rysujemy pierwszy raz lub po zmianie rozmiaru
+        if not self.canvas.find_all():
+            for row in range(self.current_rows):
+                for col in range(self.current_cols):
+                    x1 = self.offset_x + col * self.cell_size
+                    y1 = self.offset_y + row * self.cell_size
+                    x2 = x1 + self.cell_size
+                    y2 = y1 + self.cell_size
 
-                color = "white"
-                if self.grid_data[row][col] == 1:
-                    color = "#2c3e50"  # Kolor ściany
+                    color = "white"
+                    if self.grid_data[row][col] == 1:
+                        color = "#2c3e50"
 
-                # zaznaczenie startu i mety
-                if row == 0 and col == 0: color = "#2ecc71"
-                if row == self.current_rows - 1 and col == self.current_cols - 1: color = "#e74c3c"
+                    if (row, col) == self.start_pos:
+                        color = "#2ecc71"
+                    elif (row, col) == self.goal_pos:
+                        color = "#e74c3c"
 
-                self.canvas.create_rectangle(
-                    x1, y1, x2, y2,
-                    fill=color,
-                    outline="black"
-                )
+                    self.canvas.create_rectangle(
+                        x1, y1, x2, y2,
+                        fill=color,
+                        outline="black",
+                        tags=f"cell_{row}_{col}"
+                    )
+        else:
+            # Jeśli Canvas nie jest puste, aktualizujemy tylko kolory
+            for row in range(self.current_rows):
+                for col in range(self.current_cols):
+                    color = "white"
+                    if self.grid_data[row][col] == 1:
+                        color = "#2c3e50"
 
-    # sprawdzenie mozliwosci przejscia labiryntu algorytmem BFS
+                    if (row, col) == self.start_pos:
+                        color = "#2ecc71"
+                    elif (row, col) == self.goal_pos:
+                        color = "#e74c3c"
+
+                    self.canvas.itemconfig(f"cell_{row}_{col}", fill=color)
+
     def validate_maze_path(self):
         if not self.grid_data: return
 
         rows = self.current_rows
         cols = self.current_cols
-        start = (0, 0)
-        goal = (rows - 1, cols - 1)
+        start = self.start_pos
+        goal = self.goal_pos
 
         if self.grid_data[start[0]][start[1]] == 1 or self.grid_data[goal[0]][goal[1]] == 1:
             messagebox.showerror("Błąd", "Start lub Meta są zablokowane ścianą!")

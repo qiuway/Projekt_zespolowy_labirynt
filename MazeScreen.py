@@ -1,6 +1,8 @@
 import tkinter as tk
+import random
 from tkinter import messagebox
 from collections import deque
+
 
 from BaseScreen import BaseScreen
 from ButtonStyles import BUTTON_ONE
@@ -141,12 +143,18 @@ class MazeScreen(BaseScreen):
             **BUTTON_ONE
         ).pack(pady=6)
 
-        for text in ["Losowy labirynt", "Zapisz labirynt"]:
-            tk.Button(
-                left_panel,
-                text=text,
-                **BUTTON_ONE
-            ).pack(pady=6)
+        tk.Button(
+            left_panel,
+            text="Losowy labirynt",
+            command=self.create_random_maze,
+            **BUTTON_ONE
+        ).pack(pady=6)
+
+        tk.Button(
+            left_panel,
+            text="Zapisz labirynt",
+            **BUTTON_ONE
+        ).pack(pady=6)
 
         tk.Button(
             left_panel,
@@ -245,6 +253,137 @@ class MazeScreen(BaseScreen):
             if self.canvas: self.canvas.delete("all")
 
             self.draw_grid()
+        except ValueError:
+            return
+
+    def create_random_maze(self):
+        try:
+            rows = int(self.rows_var.get())
+            cols = int(self.cols_var.get())
+
+            self.current_rows = max(10, min(40, rows))
+            self.current_cols = max(10, min(40, cols))
+
+            # Wypełnianie labiryntu ścianami
+            self.grid_data = [
+                [1 for _ in range(self.current_cols)]
+                for _ in range(self.current_rows)
+            ]
+
+            old_start_pos = self.start_pos
+            old_goal_pos = self.goal_pos
+
+            # START
+            if old_start_pos is not None:
+                start_row, start_col = old_start_pos
+
+                if 0 <= start_row < self.current_rows and 0 <= start_col < self.current_cols:
+                    self.start_pos = old_start_pos
+                else:
+                    self.start_pos = (0, 0)
+            else:
+                self.start_pos = (0, 0)
+
+            # META
+            if old_goal_pos is not None:
+                goal_row, goal_col = old_goal_pos
+
+                if 0 <= goal_row < self.current_rows and 0 <= goal_col < self.current_cols:
+                    self.goal_pos = old_goal_pos
+                else:
+                    self.goal_pos = (self.current_rows - 1, self.current_cols - 1)
+            else:
+                self.goal_pos = (self.current_rows - 1, self.current_cols - 1)
+
+            # Start i meta nie mogą być na tym samym polu
+            if self.start_pos == self.goal_pos:
+                if self.start_pos != (self.current_rows - 1, self.current_cols - 1):
+                    self.goal_pos = (self.current_rows - 1, self.current_cols - 1)
+                else:
+                    self.goal_pos = (0, 0)
+
+            def is_inside(row, col):
+                return 0 <= row < self.current_rows and 0 <= col < self.current_cols
+
+            # Generowanie ścieżki
+            def carve(row, col):
+                self.grid_data[row][col] = 0
+
+                directions = [
+                    (-2, 0),
+                    (2, 0),
+                    (0, -2),
+                    (0, 2)
+                ]
+
+                random.shuffle(directions)
+
+                for dr, dc in directions:
+                    new_row = row + dr
+                    new_col = col + dc
+
+                    if is_inside(new_row, new_col) and self.grid_data[new_row][new_col] == 1:
+                        wall_row = row + dr // 2
+                        wall_col = col + dc // 2
+
+                        self.grid_data[wall_row][wall_col] = 0
+                        self.grid_data[new_row][new_col] = 0
+
+                        carve(new_row, new_col)
+
+            # Rozpoczęcie generowania od lewego górnego rogu
+            carve(0, 0)
+
+            # Upewniamy się, że meta jest dostępna i połączona z labiryntem
+            goal_row, goal_col = self.goal_pos
+            self.grid_data[goal_row][goal_col] = 0
+
+            possible_goal_connections = [
+                (goal_row - 1, goal_col),
+                (goal_row, goal_col - 1),
+                (goal_row - 1, goal_col - 1),
+            ]
+
+            for r, c in possible_goal_connections:
+                if 0 <= r < self.current_rows and 0 <= c < self.current_cols:
+                    self.grid_data[r][c] = 0
+
+            # Dodatkowe otwieranie pól, żeby było więcej rozgałęzień
+            for row in range(self.current_rows):
+                for col in range(self.current_cols):
+                    if self.grid_data[row][col] == 1:
+                        if random.random() < 0.10:
+                            self.grid_data[row][col] = 0
+
+            # Awaryjna droga w przypadku braku wygenerowanej ścieżki
+            if not self.has_path():
+                row, col = self.start_pos
+
+                while row < self.current_rows:
+                    self.grid_data[row][col] = 0
+                    row += 1
+
+                row -= 1
+
+                while col < self.current_cols:
+                    self.grid_data[row][col] = 0
+                    col += 1
+
+            self.size_label.config(
+                text=f"Rozmiar:\n{self.current_rows} x {self.current_cols}"
+            )
+
+            if self.canvas:
+                self.canvas.delete("all")
+
+            start_row, start_col = self.start_pos
+            goal_row, goal_col = self.goal_pos
+
+            self.grid_data[start_row][start_col] = 0
+            self.grid_data[goal_row][goal_col] = 0
+
+            self.draw_grid()
+
         except ValueError:
             return
 
@@ -421,7 +560,7 @@ class MazeScreen(BaseScreen):
         curr_dir = 1
 
         path = [curr_pos]
-        # maksymalna liczba krokow, aby uniknac nieskonczonej petli
+        # Maksymalna liczba krokow, aby uniknac nieskonczonej petli
         limit = self.current_rows * self.current_cols * 4
 
         for _ in range(limit):
@@ -470,3 +609,39 @@ class MazeScreen(BaseScreen):
             messagebox.showwarning("Błąd", "Brak przejścia!")
 
         return found
+
+    # Sprawdzanie możliwości przejścia
+    def has_path(self):
+        if not self.start_pos or not self.goal_pos:
+            return False
+
+        queue = deque([self.start_pos])
+        visited = {self.start_pos}
+
+        directions = [
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1)
+        ]
+
+        while queue:
+            row, col = queue.popleft()
+
+            if (row, col) == self.goal_pos:
+                return True
+
+            for dr, dc in directions:
+                new_row = row + dr
+                new_col = col + dc
+
+                if (
+                        0 <= new_row < self.current_rows
+                        and 0 <= new_col < self.current_cols
+                        and (new_row, new_col) not in visited
+                        and self.grid_data[new_row][new_col] == 0
+                ):
+                    visited.add((new_row, new_col))
+                    queue.append((new_row, new_col))
+
+        return False

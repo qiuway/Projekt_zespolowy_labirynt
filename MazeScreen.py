@@ -1,6 +1,6 @@
 import tkinter as tk
 import random
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 from collections import deque
 
 
@@ -153,6 +153,14 @@ class MazeScreen(BaseScreen):
         tk.Button(
             left_panel,
             text="Zapisz labirynt",
+            command=self.save_maze,
+            **BUTTON_ONE
+        ).pack(pady=6)
+
+        tk.Button(
+            left_panel,
+            text="Wczytaj labirynt",
+            command=self.load_maze,
             **BUTTON_ONE
         ).pack(pady=6)
 
@@ -610,6 +618,86 @@ class MazeScreen(BaseScreen):
 
         return found
 
+    def save_maze(self):
+        if not self.grid_data:
+            messagebox.showwarning("Błąd", "Brak labiryntu do zapisania! Stwórz go najpierw.")
+            return
+
+        # Okno wyboru miejsca zapisu
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Pliki tekstowe", "*.txt"), ("Wszystkie pliki", "*.*")],
+            title="Zapisz labirynt"
+        )
+
+        if not filepath:
+            return  # Użytkownik anulował zapis
+
+        try:
+            with open(filepath, 'w') as f:
+                # 1. Zapisujemy wymiary: wiersze i kolumny
+                f.write(f"{self.current_rows} {self.current_cols}\n")
+                # 2. Zapisujemy współrzędne startu i mety
+                f.write(f"{self.start_pos[0]} {self.start_pos[1]}\n")
+                f.write(f"{self.goal_pos[0]} {self.goal_pos[1]}\n")
+                # 3. Zapisujemy całą siatkę labiryntu (0 to ścieżka, 1 to ściana)
+                for row in self.grid_data:
+                    f.write(" ".join(map(str, row)) + "\n")
+
+            messagebox.showinfo("Sukces", "Labirynt został zapisany pomyślnie!")
+        except Exception as e:
+            messagebox.showerror("Błąd", f"Wystąpił błąd podczas zapisywania:\n{e}")
+
+    def load_maze(self):
+        # Okno wyboru pliku do wczytania
+        filepath = filedialog.askopenfilename(
+            filetypes=[("Pliki tekstowe", "*.txt"), ("Wszystkie pliki", "*.*")],
+            title="Wczytaj labirynt"
+        )
+
+        if not filepath:
+            return  # Użytkownik anulował wczytywanie
+
+        try:
+            with open(filepath, 'r') as f:
+                lines = f.readlines()
+
+            if len(lines) < 4:
+                raise ValueError("Nieprawidłowy lub uszkodzony plik.")
+
+            # Odczyt danych
+            rows, cols = map(int, lines[0].strip().split())
+            start_r, start_c = map(int, lines[1].strip().split())
+            goal_r, goal_c = map(int, lines[2].strip().split())
+
+            new_grid = []
+            for i in range(3, 3 + rows):
+                row_data = list(map(int, lines[i].strip().split()))
+                if len(row_data) != cols:
+                    raise ValueError("Nieprawidłowa liczba kolumn w pliku.")
+                new_grid.append(row_data)
+
+            # Aktualizacja zmiennych w klasie
+            self.current_rows = rows
+            self.current_cols = cols
+            self.start_pos = (start_r, start_c)
+            self.goal_pos = (goal_r, goal_c)
+            self.grid_data = new_grid
+
+            # Aktualizacja pól tekstowych i informacji na ekranie
+            self.rows_var.set(str(rows))
+            self.cols_var.set(str(cols))
+            self.size_label.config(text=f"Rozmiar:\n{rows} x {cols}")
+
+            # Rysowanie na nowo
+            if self.canvas:
+                self.canvas.delete("all")
+            self.draw_grid()
+
+            messagebox.showinfo("Sukces", "Labirynt został wczytany pomyślnie!")
+        except Exception as e:
+            messagebox.showerror("Błąd",
+                                 f"Nie udało się wczytać pliku. Upewnij się, że ma właściwy format.\nSzczegóły: {e}")
     # Sprawdzanie możliwości przejścia
     def has_path(self):
         if not self.start_pos or not self.goal_pos:

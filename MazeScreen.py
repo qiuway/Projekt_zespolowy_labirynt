@@ -38,6 +38,8 @@ class MazeScreen(BaseScreen):
         self.canvas = None
         self.method_label = None
         self.size_label = None
+        self.optimal_counter_label = None
+        self.wrong_counter_label = None
 
         self.create_title("Ekran Labiryntu")
         self.build_maze_ui()
@@ -53,7 +55,7 @@ class MazeScreen(BaseScreen):
 
         return False
 
-    def build_maze_ui(self):
+    def build_maze_ui(self, info_box=None):
         outer = tk.Frame(self, bg="#e9e9e9")
         outer.pack(fill="both", expand=True, padx=20, pady=10)
 
@@ -220,24 +222,60 @@ class MazeScreen(BaseScreen):
         tk.Label(
             right_panel,
             text="Narzędzie:",
-            font=("Arial", 16, "bold"),
+            font=("Arial", 12, "bold"),
             bg="#e9e9e9"
         ).pack(pady=(20, 5))
 
-        tools_frame = tk.Frame(right_panel, bg="#e9e9e9")
-        tools_frame.pack(pady=(0, 15))
-
-        for mode in ["Ściana", "Start", "Meta"]:
+        for tool in ["Ściana", "Start", "Meta"]:
             tk.Radiobutton(
-                tools_frame,
-                text=mode,
-                value=mode,
+                right_panel,
+                text=tool,
                 variable=self.draw_mode,
+                value=tool,
                 indicatoron=False,
-                width=14,
-                font=("Arial", 12),
-                bg="white", fg="black", selectcolor="#dcdcdc", relief="solid", bd=2
-            ).pack(pady=4)
+                **BUTTON_FOUR
+            ).pack(pady=5, fill="x")
+
+        counter_box = tk.Frame(
+            right_panel,
+            bg="#ffffff",
+            bd=2,
+            relief="groove",
+            width=170,
+            height=210
+        )
+        counter_box.pack(pady=(25, 0), fill="x", padx=5)
+        counter_box.pack_propagate(False)
+
+        tk.Label(
+            counter_box,
+            text="Liczniki trasy",
+            font=("Arial", 12, "bold"),
+            bg="#ffffff",
+            fg="black"
+        ).pack(pady=(12, 12))
+
+        self.optimal_counter_label = tk.Label(
+            counter_box,
+            text="Optymalna trasa:\n0 pól",
+            font=("Arial", 10),
+            bg="#ffffff",
+            fg="#f1c40f",
+            justify="center",
+            wraplength=150
+        )
+        self.optimal_counter_label.pack(pady=(0, 18), fill="x")
+
+        self.wrong_counter_label = tk.Label(
+            counter_box,
+            text="Nieoptymalne pola:\n0 pól",
+            font=("Arial", 10),
+            bg="#ffffff",
+            fg="#3498db",
+            justify="center",
+            wraplength=150
+        )
+        self.wrong_counter_label.pack(pady=(0, 10), fill="x")
 
     def update_method_label(self):
         self.method_label.config(text=f"Metoda:\n{self.selected_method.get()}")
@@ -494,19 +532,25 @@ class MazeScreen(BaseScreen):
             return
 
         method = self.selected_method.get()
-        path = []
 
         if method == "DFS":
             path = self.solve_dfs()
+            wrong_paths = []
+
         elif method == "BFS":
             path = self.solve_bfs()
-        elif method == "Prawej Ręki":
-            path = self.solve_right_hand()
+            wrong_paths = []
+
+        else:
+            path, wrong_paths = self.solve_right_hand()
 
         if path:
             self.draw_final_path(path)
+            self.draw_wrong_paths(wrong_paths)
+            self.update_counters(path, wrong_paths)
         else:
-            messagebox.showinfo("Informacja", "Algorytm nie zwrócił ścieżki.")
+            self.update_counters([], [])
+            messagebox.showinfo("Wynik", "Nie znaleziono ścieżki!")
 
     def draw_final_path(self, path):
         for row in range(self.current_rows):
@@ -517,6 +561,32 @@ class MazeScreen(BaseScreen):
         for node in path:
             if node != self.start_pos and node != self.goal_pos:
                 self.canvas.itemconfig(f"cell_{node[0]}_{node[1]}", fill="#f1c40f")  # Żółty kolor
+
+    def draw_wrong_paths(self, wrong_paths):
+        for row, col in wrong_paths:
+            if (row, col) != self.start_pos and (row, col) != self.goal_pos:
+                self.canvas.itemconfig(f"cell_{row}_{col}", fill="#3498db")
+
+    def update_counters(self, path, wrong_paths=None):
+        if wrong_paths is None:
+            wrong_paths = []
+
+        optimal_cells = set(path)
+        wrong_cells = set(wrong_paths)
+
+        optimal_cells.discard(self.start_pos)
+        optimal_cells.discard(self.goal_pos)
+
+        wrong_cells.discard(self.start_pos)
+        wrong_cells.discard(self.goal_pos)
+
+        self.optimal_counter_label.config(
+            text=f"Optymalna trasa:\n{len(optimal_cells)} pól"
+        )
+
+        self.wrong_counter_label.config(
+            text=f"Nieoptymalne pola:\n{len(wrong_cells)} pól"
+        )
 
     def solve_dfs(self):
         stack = [self.start_pos]
@@ -562,34 +632,72 @@ class MazeScreen(BaseScreen):
                     queue.append((nr, nc))
         return []
 
+    def simplify_path(self, path):
+        simplified = []
+
+        for cell in path:
+            if cell in simplified:
+                index = simplified.index(cell)
+                simplified = simplified[:index + 1]
+            else:
+                simplified.append(cell)
+
+        return simplified
+
     def solve_right_hand(self):
         directions = [(-1, 0), (0, 1), (1, 0), (0, -1)]
-        curr_pos = self.start_pos
-        curr_dir = 1
+        current_dir = 1
 
-        path = [curr_pos]
-        # Maksymalna liczba krokow, aby uniknac nieskonczonej petli
+        current = self.start_pos
+        full_path = [current]
+
         limit = self.current_rows * self.current_cols * 4
+        steps = 0
 
-        for _ in range(limit):
-            if curr_pos == self.goal_pos:
-                return path
+        while current != self.goal_pos and steps < limit:
+            steps += 1
+            row, col = current
 
-            found_move = False
-            for i in [1, 0, -1, -2]:
-                test_dir = (curr_dir + i) % 4
-                dr, dc = directions[test_dir]
-                nr, nc = curr_pos[0] + dr, curr_pos[1] + dc
+            possible_turns = [
+                (current_dir + 1) % 4,
+                current_dir,
+                (current_dir - 1) % 4,
+                (current_dir + 2) % 4
+            ]
 
-                if 0 <= nr < self.current_rows and 0 <= nc < self.current_cols and self.grid_data[nr][nc] == 0:
-                    curr_pos = (nr, nc)
-                    curr_dir = test_dir
-                    path.append(curr_pos)
-                    found_move = True
+            moved = False
+
+            for new_dir in possible_turns:
+                dr, dc = directions[new_dir]
+                nr, nc = row + dr, col + dc
+
+                if (
+                        0 <= nr < self.current_rows and
+                        0 <= nc < self.current_cols and
+                        self.grid_data[nr][nc] == 0
+                ):
+                    current_dir = new_dir
+                    current = (nr, nc)
+                    full_path.append(current)
+                    moved = True
                     break
 
-            if not found_move: break
-        return path
+            if not moved:
+                break
+
+        if current == self.goal_pos:
+            final_path = self.simplify_path(full_path)
+
+            final_path_set = set(final_path)
+            wrong_paths = []
+
+            for cell in full_path:
+                if cell not in final_path_set and cell not in wrong_paths:
+                    wrong_paths.append(cell)
+
+            return final_path, wrong_paths
+
+        return [], []
 
     def validate_maze_path(self):
         if not self.grid_data: return False

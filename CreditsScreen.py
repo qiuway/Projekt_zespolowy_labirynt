@@ -18,7 +18,7 @@ class CreditsScreen(BaseScreen):
         row = tk.Frame(main_box, bg="#e9e9e9")
         row.pack()
 
-        def create_author_box(parent, title, description="Info o autorach"):
+        def create_author_box(parent, title, description):
             box = tk.Frame(
                 parent,
                 **BUTTON_NINE
@@ -37,9 +37,9 @@ class CreditsScreen(BaseScreen):
                 **BUTTON_TEN
             ).pack()
 
-        create_author_box(row, "Filip")
-        create_author_box(row, "Mikołaj")
-        create_author_box(row, "Norbert")
+        create_author_box(row, "Filip Dorowski", "095867")
+        create_author_box(row, "Mikołaj Kałczuga", "094057")
+        create_author_box(row, "Norbert Fidler", "095905")
 
         tk.Button(
             self,

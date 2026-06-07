@@ -20,7 +20,7 @@ class MazeScreen(BaseScreen):
         self.rows_var = tk.StringVar(value="20")
         self.cols_var = tk.StringVar(value="20")
 
-        # Nowa zmienna określająca, co aktualnie rysujemy na planszy
+        # Zmienna określająca, co aktualnie rysujemy na planszy
         self.draw_mode = tk.StringVar(value="Ściana")
 
         self.current_rows = None
@@ -44,7 +44,7 @@ class MazeScreen(BaseScreen):
         self.create_title("Ekran Labiryntu")
         self.build_maze_ui()
 
-    # walidacja wartosci wymiarow labiryntu
+    # Walidacja wartosci wymiarow labiryntu
     def validate_size(self, new_value):
         if new_value == "":
             return True
@@ -111,6 +111,7 @@ class MazeScreen(BaseScreen):
             bg="#e9e9e9"
         ).grid(row=0, column=0, columnspan=3, pady=(0, 6))
 
+        # Pole do wpisywania ilości rzędów
         tk.Entry(
             size_frame,
             textvariable=self.rows_var,
@@ -128,6 +129,7 @@ class MazeScreen(BaseScreen):
             bg="#e9e9e9"
         ).grid(row=1, column=1, padx=5)
 
+        # Pole do wpisywania ilości kolumn
         tk.Entry(
             size_frame,
             textvariable=self.cols_var,
@@ -236,6 +238,7 @@ class MazeScreen(BaseScreen):
                 **BUTTON_FOUR
             ).pack(pady=5, fill="x")
 
+        # Pole z counterami kroków
         counter_box = tk.Frame(
             right_panel,
             bg="#ffffff",
@@ -544,6 +547,7 @@ class MazeScreen(BaseScreen):
         else:
             path, wrong_paths = self.solve_right_hand()
 
+        # Update countera i rysowanie optymalnej/nieoptymalnej trasy
         if path:
             self.draw_final_path(path)
             self.draw_wrong_paths(wrong_paths)

@@ -47,7 +47,6 @@ class App(tk.Tk):
         settings_frame = self.frames["SettingsScreen"]
         settings_frame.fullscreen_var.set(False)
 
-    # nf
     def change_resolution(self, resolution: str):
         self.geometry(resolution)
         self.update_idletasks()

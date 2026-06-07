@@ -26,12 +26,6 @@ class SettingsScreen(BaseScreen):
             **BUTTON_SEVEN
         ).pack(anchor="w", pady=10)
 
-        tk.Checkbutton(
-            panel,
-            text="Muzyka",
-            **BUTTON_SEVEN
-        ).pack(anchor="w", pady=10)
-
         # nf
         res_frame = tk.Frame(panel, bg="white")
         res_frame.pack(anchor="w", pady=10)
